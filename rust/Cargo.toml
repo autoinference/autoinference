@@ -1,0 +1,13 @@
+[package]
+name = "autoinference"
+version = "0.0.1"
+edition = "2021"
+description = "Placeholder for the autoinference library. Work in progress."
+license = "MIT"
+repository = "https://github.com/autoinference/autoinference"
+readme = "README.md"
+keywords = ["autoinference", "inference", "ml", "ai"]
+categories = ["development-tools"]
+
+[lib]
+path = "src/lib.rs"

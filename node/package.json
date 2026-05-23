@@ -1,0 +1,30 @@
+{
+  "name": "autoinference",
+  "version": "0.0.1",
+  "description": "Placeholder for the autoinference library. Work in progress.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "autoinference",
+    "inference",
+    "ml",
+    "ai"
+  ],
+  "author": "autoinference <noreply@autoinference.dev>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/autoinference/autoinference.git"
+  },
+  "bugs": {
+    "url": "https://github.com/autoinference/autoinference/issues"
+  },
+  "homepage": "https://github.com/autoinference/autoinference#readme",
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ]
+}
