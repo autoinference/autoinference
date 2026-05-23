@@ -1,6 +1,6 @@
 # Publishing checklist — claim the `autoinference` name
 
-All placeholders are filled in with `autoinference` / `noreply@autoinference.dev`. Edit those in [LICENSE](LICENSE), [python/pyproject.toml](python/pyproject.toml), and [node/package.json](node/package.json) if you want different attribution before publishing.
+Author metadata is set to `autoinference <stephenn.fernandes@gmail.com>`. Edit [LICENSE](LICENSE), [python/pyproject.toml](python/pyproject.toml), and [node/package.json](node/package.json) if you want different attribution before publishing.
 
 Each section below is independent — do them in any order.
 
