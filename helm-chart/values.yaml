@@ -1,0 +1,89 @@
+# Default values for autoinference.
+# This is a placeholder chart for v0.0.1-alpha — the agentic deployment
+# pipeline ships with the design-partner beta. Values here are the
+# shape future releases will keep, so install scripts written against
+# this skeleton won't break when the chart actually does something.
+
+# -- Number of placeholder pods to run (just stays Running with a
+# wandb-style 'we're in alpha' message; replace with real Auto Inference
+# control-plane replicas in the beta).
+replicaCount: 1
+
+image:
+  # Once the real image ships, the canonical reference will be
+  # ghcr.io/autoinference/autoinference. The placeholder is a tiny
+  # alpine container that echoes a static notice.
+  repository: alpine
+  tag: "3.20"
+  pullPolicy: IfNotPresent
+
+# -- Override the chart name (e.g. for multi-tenant installs in one ns).
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: autoinference.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 64Mi
+  requests:
+    cpu: 10m
+    memory: 16Mi
+
+# -- Auto Inference future deployment surface. These fields will start
+# being honoured by the real chart once the agentic pipeline ships;
+# defining them now means consumers can pre-template their values files.
+autoinference:
+  model: ""               # e.g. "deepseek-ai/DeepSeek-V4-Pro"
+  hardware: ""            # e.g. "8x B300"
+  engine: ""              # one of: sglang, tensorrt-llm, tokenspeed, vllm, lmdeploy, auto
+  quantize: "auto"
+  slo:
+    p99LatencyMs: null
+    minQps: null
+    maxCostPerMillionTokens: null
+  dashboard:
+    # When set, the chart will emit a deployment-summary URL annotation
+    # in the form dashboard.autoinference.org/<user>/<project>/<hash>.
+    enabled: false
+    project: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

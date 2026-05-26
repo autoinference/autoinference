@@ -1,0 +1,51 @@
+apiVersion: v2
+name: autoinference
+description: |
+  Auto Inference — agentic CLI for production LLM inference optimization.
+  Picks the optimal engine (SGLang, TensorRT-LLM, tokenspeed, vLLM,
+  LMDeploy), tunes every config, synthesises custom kernels, and
+  validates the deployment. Placeholder release while the agent
+  pipeline ships with the design-partner beta.
+type: application
+version: 0.0.1-alpha.0
+appVersion: "0.0.1-alpha"
+home: https://autoinference.org
+sources:
+  - https://github.com/autoinference/autoinference
+icon: https://autoinference.org/apple-touch-icon.png
+keywords:
+  - autoinference
+  - llm
+  - inference
+  - inference-optimization
+  - vllm
+  - sglang
+  - tensorrt-llm
+  - lmdeploy
+  - tokenspeed
+  - gpu
+  - kubernetes
+  - mcp
+  - agentic
+maintainers:
+  - name: Auto Inference
+    email: hello@autoinference.org
+    url: https://autoinference.org
+annotations:
+  artifacthub.io/displayName: "Auto Inference"
+  artifacthub.io/category: ai-machine-learning
+  artifacthub.io/links: |
+    - name: Website
+      url: https://autoinference.org
+    - name: GitHub
+      url: https://github.com/autoinference/autoinference
+    - name: npm (CLI)
+      url: https://www.npmjs.com/package/autoinference
+    - name: npm (MCP skill)
+      url: https://www.npmjs.com/package/@autoinference/skill
+    - name: PyPI
+      url: https://pypi.org/project/autoinference/
+  artifacthub.io/license: MIT
+  artifacthub.io/maintainers: |
+    - name: Auto Inference
+      email: hello@autoinference.org

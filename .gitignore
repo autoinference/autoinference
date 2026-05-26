@@ -28,3 +28,7 @@ Cargo.lock
 
 # Tooling
 .claude/
+
+# Helm chart build artifacts (the packaged .tgz + generated index.yaml
+# get published to the autoinference/charts repo, not committed here)
+.helm-dist/

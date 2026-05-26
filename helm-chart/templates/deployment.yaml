@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "autoinference.fullname" . }}
+  labels:
+    {{- include "autoinference.labels" . | nindent 4 }}
+  annotations:
+    autoinference.org/release: {{ .Chart.AppVersion | quote }}
+    {{- if .Values.autoinference.dashboard.enabled }}
+    autoinference.org/dashboard: {{ printf "dashboard.autoinference.org/%s/%s" .Release.Namespace (default .Release.Name .Values.autoinference.dashboard.project) | quote }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "autoinference.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "autoinference.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "autoinference.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              cat <<'EOF'
+              ─────────────────────────────────────────────────────────
+                Auto Inference v{{ .Chart.AppVersion }} — placeholder
+              ─────────────────────────────────────────────────────────
+                The agentic LLM inference deployment pipeline ships
+                with the design-partner beta. This pod is a no-op
+                holding the chart name on the cluster + on Artifact Hub.
+
+                Track progress: https://autoinference.org
+                Contact:        hello@autoinference.org
+              EOF
+              # idle forever — Pod stays Running so the Deployment
+              # reports Ready, useful for upgrade smoke-tests
+              sleep infinity
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

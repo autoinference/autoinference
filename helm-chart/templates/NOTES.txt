@@ -1,0 +1,29 @@
+  ┌─────────────────────────────────────────────────────────────┐
+  │  Auto Inference — v{{ .Chart.AppVersion }} placeholder                  │
+  └─────────────────────────────────────────────────────────────┘
+
+  Chart installed: {{ .Release.Name }} (namespace: {{ .Release.Namespace }})
+
+  This chart reserves the 'autoinference' name on Helm registries
+  while the real agentic deployment pipeline ships with the
+  design-partner beta. Today it deploys a single no-op placeholder
+  pod — the values.yaml shape is the contract the real chart will
+  honour, so you can pre-template Helm values now.
+
+  Verify the placeholder is running:
+
+    kubectl get pods -n {{ .Release.Namespace }} -l "app.kubernetes.io/instance={{ .Release.Name }}"
+    kubectl logs   -n {{ .Release.Namespace }} -l "app.kubernetes.io/instance={{ .Release.Name }}" --tail=20
+
+  When the beta ships, upgrade with:
+
+    helm repo update
+    helm upgrade {{ .Release.Name }} autoinference/autoinference -n {{ .Release.Namespace }}
+
+  Track progress at:
+
+    Website:  https://autoinference.org
+    Source:   https://github.com/autoinference/autoinference
+    npm CLI:  https://www.npmjs.com/package/autoinference
+    npm MCP:  https://www.npmjs.com/package/@autoinference/skill
+    Contact:  hello@autoinference.org
