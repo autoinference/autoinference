@@ -1,6 +1,6 @@
 # Publishing checklist — claim the `autoinference` name
 
-Author metadata is set to `autoinference <stephenn.fernandes@gmail.com>`. Edit [LICENSE](LICENSE), [python/pyproject.toml](python/pyproject.toml), and [node/package.json](node/package.json) if you want different attribution before publishing.
+Author metadata is set to `Auto Inference <hello@autoinference.org>` (the public, external-comm mailbox). Critical service ownership (npm/PyPI/crates account login, GitHub org owner, Cloudflare, registrar, billing, search console, analytics) should sit on `admin@autoinference.org` — do NOT use `hello@` for high-privilege account recovery.
 
 Each section below is independent — do them in any order.
 

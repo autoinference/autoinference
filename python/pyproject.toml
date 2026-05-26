@@ -9,7 +9,7 @@ description = "Placeholder for the autoinference library. Work in progress."
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
-authors = [{ name = "autoinference", email = "stephenn.fernandes@gmail.com" }]
+authors = [{ name = "Auto Inference", email = "hello@autoinference.org" }]
 keywords = ["autoinference", "inference", "ml", "ai"]
 classifiers = [
     "Development Status :: 1 - Planning",

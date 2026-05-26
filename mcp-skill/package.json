@@ -30,7 +30,7 @@
     "tensorrt-llm",
     "autoinference"
   ],
-  "author": "autoinference <stephenn.fernandes@gmail.com>",
+  "author": "Auto Inference <hello@autoinference.org>",
   "license": "MIT",
   "homepage": "https://autoinference.org",
   "repository": {
