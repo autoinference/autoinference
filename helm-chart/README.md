@@ -6,22 +6,17 @@ Helm chart for **[Auto Inference](https://autoinference.org)** — agentic CLI +
 
 ## Install
 
-Once the chart repo is live:
+Chart repository is live at **`https://autoinference.org/charts`** (published from [`autoinference/charts`](https://github.com/autoinference/charts) via GitHub Pages):
 
 ```bash
-helm repo add autoinference https://autoinference.github.io/charts
+helm repo add autoinference https://autoinference.org/charts
 helm repo update
 helm install autoinference autoinference/autoinference \
-  --namespace autoinference --create-namespace
-```
-
-Or via OCI (Helm 3.8+):
-
-```bash
-helm install autoinference oci://ghcr.io/autoinference/charts/autoinference \
   --version 0.0.1-alpha.0 \
   --namespace autoinference --create-namespace
 ```
+
+`helm search repo autoinference --devel` (pre-release versions require `--devel`).
 
 ## What it deploys today
 
