@@ -1,0 +1,189 @@
+# NVIDIA SKU knowledge base — compiled into the binary.
+# Every row: vendor datasheet values with provenance. Runtime probes (nvidia-smi, STREAM-like
+# HBM probe, NCCL all-reduce) override these per session; see docs/DECISIONS.md #12.
+schema_version = 1
+
+[[sku]]
+id = "a100-40gb"
+vendor = "nvidia"
+name = "A100 40GB SXM"
+architecture = "ampere"
+compute_capability = "8.0"
+sm_count = 108
+hbm_gb = 40
+hbm_bandwidth_gbs = 1555
+l2_mb = 40
+max_smem_per_sm_kb = 164
+tensor_core_gen = 3
+fp8 = false
+fp4 = false
+tma = false
+nvlink_gbs = 600
+tdp_w = 400
+source_url = "https://www.nvidia.com/en-us/data-center/a100/"
+verified_date = "2026-09-27"
+
+[[sku]]
+id = "a100-80gb"
+vendor = "nvidia"
+name = "A100 80GB SXM"
+architecture = "ampere"
+compute_capability = "8.0"
+sm_count = 108
+hbm_gb = 80
+hbm_bandwidth_gbs = 2039
+l2_mb = 40
+max_smem_per_sm_kb = 164
+tensor_core_gen = 3
+fp8 = false
+fp4 = false
+tma = false
+nvlink_gbs = 600
+tdp_w = 400
+source_url = "https://www.nvidia.com/en-us/data-center/a100/"
+verified_date = "2026-09-27"
+
+[[sku]]
+id = "h100-sxm"
+vendor = "nvidia"
+name = "H100 80GB SXM5"
+architecture = "hopper"
+compute_capability = "9.0"
+sm_count = 132
+hbm_gb = 80
+hbm_bandwidth_gbs = 3350
+l2_mb = 50
+max_smem_per_sm_kb = 228
+tensor_core_gen = 4
+fp8 = true
+fp4 = false
+tma = true
+nvlink_gbs = 900
+tdp_w = 700
+notes = "wgmma + TMA; FA3 target"
+source_url = "https://resources.nvidia.com/en-us-tensor-core/nvidia-tensor-core-gpu-datasheet"
+verified_date = "2026-09-27"
+
+[[sku]]
+id = "h100-pcie"
+vendor = "nvidia"
+name = "H100 80GB PCIe"
+architecture = "hopper"
+compute_capability = "9.0"
+sm_count = 114
+hbm_gb = 80
+hbm_bandwidth_gbs = 2000
+l2_mb = 50
+max_smem_per_sm_kb = 228
+tensor_core_gen = 4
+fp8 = true
+fp4 = false
+tma = true
+nvlink_gbs = 600
+tdp_w = 350
+source_url = "https://resources.nvidia.com/en-us-tensor-core/nvidia-tensor-core-gpu-datasheet"
+verified_date = "2026-09-27"
+
+[[sku]]
+id = "h200-sxm"
+vendor = "nvidia"
+name = "H200 141GB SXM"
+architecture = "hopper"
+compute_capability = "9.0"
+sm_count = 132
+hbm_gb = 141
+hbm_bandwidth_gbs = 4800
+l2_mb = 50
+max_smem_per_sm_kb = 228
+tensor_core_gen = 4
+fp8 = true
+fp4 = false
+tma = true
+nvlink_gbs = 900
+tdp_w = 700
+source_url = "https://www.nvidia.com/en-us/data-center/h200/"
+verified_date = "2026-09-27"
+
+[[sku]]
+id = "b200"
+vendor = "nvidia"
+name = "B200 180GB SXM"
+architecture = "blackwell"
+compute_capability = "10.0"
+sm_count = 148
+hbm_gb = 180
+hbm_bandwidth_gbs = 8000
+l2_mb = 126
+max_smem_per_sm_kb = 228
+tensor_core_gen = 5
+fp8 = true
+fp4 = true
+tma = true
+nvlink_gbs = 1800
+tdp_w = 1000
+notes = "NVFP4; tcgen05; FA4 target; vLLM auto-picks FLASHINFER on SM100"
+source_url = "https://www.nvidia.com/en-us/data-center/dgx-b200/"
+verified_date = "2026-09-27"
+
+[[sku]]
+id = "b300"
+vendor = "nvidia"
+name = "B300 288GB SXM"
+architecture = "blackwell"
+compute_capability = "10.3"
+sm_count = 160
+hbm_gb = 288
+hbm_bandwidth_gbs = 8000
+l2_mb = 126
+max_smem_per_sm_kb = 228
+tensor_core_gen = 5
+fp8 = true
+fp4 = true
+tma = true
+nvlink_gbs = 1800
+tdp_w = 1400
+notes = "Blackwell Ultra; FP4 dense throughput uplift over B200"
+source_url = "https://www.nvidia.com/en-us/data-center/gb300-nvl72/"
+verified_date = "2026-09-27"
+
+[[sku]]
+id = "gb200-nvl72"
+vendor = "nvidia"
+name = "GB200 NVL72 (per B200 die pair)"
+architecture = "blackwell"
+compute_capability = "10.0"
+sm_count = 148
+hbm_gb = 186
+hbm_bandwidth_gbs = 8000
+l2_mb = 126
+max_smem_per_sm_kb = 228
+tensor_core_gen = 5
+fp8 = true
+fp4 = true
+tma = true
+nvlink_gbs = 1800
+tdp_w = 1200
+notes = "72-GPU NVLink domain; Grace CPU; treat NVLink domain size as a TP/EP upper bound"
+source_url = "https://www.nvidia.com/en-us/data-center/gb200-nvl72/"
+verified_date = "2026-09-27"
+
+[[sku]]
+id = "rtx-pro-6000-blackwell"
+vendor = "nvidia"
+name = "RTX PRO 6000 Blackwell"
+architecture = "blackwell"
+compute_capability = "12.0"
+sm_count = 188
+hbm_gb = 96
+hbm_bandwidth_gbs = 1792
+l2_mb = 128
+max_smem_per_sm_kb = 100
+tensor_core_gen = 5
+fp8 = true
+fp4 = true
+tma = true
+nvlink_gbs = 0
+tdp_w = 600
+notes = "GDDR7, SM120 — consumer-class Blackwell; no NVLink; different kernel gates than SM100"
+source_url = "https://www.nvidia.com/en-us/products/workstations/professional-desktop-gpus/rtx-pro-6000/"
+verified_date = "2026-09-27"

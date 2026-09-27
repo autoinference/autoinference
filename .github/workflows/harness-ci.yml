@@ -1,0 +1,54 @@
+name: harness
+
+on:
+  push:
+    paths: ["harness/**", ".github/workflows/harness-ci.yml"]
+  pull_request:
+    paths: ["harness/**", ".github/workflows/harness-ci.yml"]
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: harness
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: harness
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --all
+      - run: cargo build --release
+      - name: schema export is deterministic
+        run: ./target/release/autoinference schema > /tmp/schema.json && test -s /tmp/schema.json
+
+  sidecar:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: harness/sidecar
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cbor2
+      - name: frame round-trip
+        run: |
+          python - <<'EOF'
+          import struct, subprocess, cbor2
+          p = subprocess.Popen(["python", "-m", "autoinference_sidecar"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+          def call(op, **kw):
+              body = cbor2.dumps({"id": 1, "op": op, **kw})
+              p.stdin.write(struct.pack(">I", len(body)) + body); p.stdin.flush()
+              n, = struct.unpack(">I", p.stdout.read(4)); return cbor2.loads(p.stdout.read(n))
+          assert call("hello", protocol_version=1)["ok"]
+          assert call("ping")["result"] == "pong"
+          assert call("hw_probe")["ok"]
+          print("sidecar ok")
+          EOF

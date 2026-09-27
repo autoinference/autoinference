@@ -1,0 +1,11 @@
+/target
+**/*.rs.bk
+/sidecar/.venv
+/sidecar/**/__pycache__
+/sidecar/*.egg-info
+/.autoinference
+*.db
+*.jsonl
+!/tests/fixtures/*.jsonl
+.env
+autoinference.toml

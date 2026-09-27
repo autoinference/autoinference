@@ -1,0 +1,22 @@
+[package]
+name = "autoinference-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "autoinference"
+path = "src/main.rs"
+
+[dependencies]
+autoinference-protocol = { path = "../protocol" }
+autoinference-core = { path = "../core" }
+autoinference-agent = { path = "../agent" }
+autoinference-tui = { path = "../tui" }
+anyhow.workspace = true
+tokio.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
