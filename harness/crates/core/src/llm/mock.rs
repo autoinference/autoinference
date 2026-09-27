@@ -72,6 +72,18 @@ impl Provider for Mock {
             Some(("kb_search", json!({"query": q.trim(), "limit": 5})))
         } else if let Some(q) = user_text.split("hw:").nth(1) {
             Some(("hw_query", json!({"sku": q.trim()})))
+        } else if let Some(q) = user_text.split("trial:").nth(1) {
+            // "trial: <sku> <json config>"
+            let mut it = q.trim().splitn(2, ' ');
+            let sku = it.next().unwrap_or("h100-sxm");
+            let cfg: serde_json::Value = it
+                .next()
+                .and_then(|c| serde_json::from_str(c).ok())
+                .unwrap_or(json!({}));
+            Some((
+                "trial_run",
+                json!({"engine":"mock","model":"meta-llama/Llama-3.1-8B-Instruct","sku":sku,"config":cfg,"repeats":3}),
+            ))
         } else {
             user_text
                 .split("run:")

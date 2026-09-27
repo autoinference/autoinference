@@ -68,6 +68,8 @@ export ANTHROPIC_API_KEY=...
 | `kb search\|knob\|constraints\|backends\|summary` | query the machine-extracted knob registry |
 | `hw list\|query SKU\|probe` | datasheet priors / measured GPUs |
 | `sessions list\|events ID\|stats ID` | the durable event log (this is what the dashboard reads) |
+| `trial --engine mock\|vllm\|sglang --sku … --config JSON` | one headless benchmark trial, recorded on the ledger |
+| `runs list\|show RUN\|pareto RUN` | candidates, results and the pareto front of a tuning run |
 | `schema` | JSON Schema of the event envelope → generate dashboard types from it |
 
 ## Design provenance
@@ -105,8 +107,10 @@ docs/             DECISIONS.md BLUEPRINT.md
 
 ## Roadmap (next milestones)
 
-1. **Trial primitive** — `ops_trial.rs`: detachable, content-hash-idempotent, variance-aware
-   compile→run→profile→measure as a durable Operation; `engine.launch`, `bench.run`, `profile.capture/query`.
+1. ~~**Trial primitive**~~ ✅ v0.0.3 — `trial_run` tool + `autoinference trial`: launch→warm→measure N repeats,
+   content-hash cache, median+IQR `noisy` flag, ledger rows, pareto front, `candidate.*/job.*/bench.sample` events.
+   Mock engine (synthetic roofline) runs anywhere; vLLM/SGLang backends launch real servers on GPU hosts.
+   Still to do: `profile.capture/query`, detach/re-attach of long jobs, nvidia-smi util sampling during runs.
 2. **Numerical gate** — `ops_numerical_gate.rs` + `verify.numeric` in the sidecar (bitwise / ulp≤N / distributional).
 3. **Bayesian search** — Optuna/BoTorch in the sidecar behind `search.propose/tell`; LLM capped at ~20% of trials.
 4. **Uploader + dashboard** — coalescing content-keyed queue (opencode `share-next.ts`) → `dashboard.autoinference.org`.

@@ -106,3 +106,16 @@ authoritative `SessionSnapshot` for header/footer; never owns agent state. **Mod
 ## 14. Mock provider for offline end-to-end
 **Decision.** `--provider mock` drives the full loop (tool calls included) with no network, so CI and
 the dashboard can be developed without spend. **Modeled on** `pi/packages/coding-agent/test/suite/harness.ts`.
+
+## 15. The Trial is machine policy, not prompt policy
+**Decision.** `trial_run` is the only way the model obtains a benchmark number. It launches the engine
+(`vllm serve` / `sglang.launch_server` rendered from registry-named knobs, or a synthetic-roofline mock),
+warms up, runs the workload N times, and returns a typed `BenchResult` (median + IQR, `noisy` when
+IQR/median > 10%, `gpu_hours`, $/1M tok). Identical specs are served from the ledger by content hash
+(engine version folded in). Every trial writes `candidates` + `bench_results` rows, emits
+`candidate.proposed → job.submitted → bench.sample*(lossy) → job.finished → candidate.evaluated →
+pareto.updated`, and recomputes the pareto front (max tok/s, min p99, min cost). **Why.** An agent that
+trusts single measurements chases thermal noise forever; a Bayesian loop re-proposes near-duplicates
+constantly. Warm-up, repeats, significance and provenance are invariants, so they live in the tool, not
+the prompt. **Modeled on** the Trial design in BLUEPRINT §7; `CandidateSource` is tracked so eval can
+prove LLM value against pure Bayesian search. Mock numbers are labelled `[mock-1]` and never presented as real.

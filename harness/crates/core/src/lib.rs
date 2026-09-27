@@ -15,6 +15,7 @@ pub mod llm;
 pub mod session;
 pub mod sidecar;
 pub mod tools;
+pub mod trial;
 
 pub use autoinference_protocol as protocol;
 

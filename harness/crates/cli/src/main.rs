@@ -96,6 +96,40 @@ enum Cmd {
     },
     /// Show resolved configuration and discovered paths.
     Doctor,
+    /// Run one benchmark trial headlessly (no LLM): launch → warm → measure → record.
+    Trial {
+        #[arg(long, default_value = "mock")]
+        engine: String,
+        #[arg(long, default_value = "meta-llama/Llama-3.1-8B-Instruct")]
+        model: String,
+        #[arg(long, default_value = "h100-sxm")]
+        sku: String,
+        /// Engine knobs as JSON, e.g. '{"max-num-seqs":256,"kv-cache-dtype":"fp8"}'
+        #[arg(long, default_value = "{}")]
+        config: String,
+        /// Workload as JSON, e.g. '{"name":"chat","concurrency":64}'
+        #[arg(long, default_value = "{}")]
+        workload: String,
+        #[arg(long, default_value_t = 3)]
+        repeats: u32,
+        /// Ledger run id to record under (default: a fresh id).
+        #[arg(long)]
+        run: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Tuning runs on the ledger (candidates, results, pareto fronts).
+    Runs {
+        #[command(subcommand)]
+        cmd: RunsCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum RunsCmd {
+    List,
+    Show { run_id: String },
+    Pareto { run_id: String },
 }
 
 #[derive(Subcommand)]
@@ -174,7 +208,7 @@ async fn main() -> Result<()> {
         Access::Tune => AccessMode::Tune,
         Access::Deploy => AccessMode::Deploy,
     };
-    cfg.auto_approve = cli.yes || matches!(cli.cmd, Cmd::Exec { .. });
+    cfg.auto_approve = cli.yes || matches!(cli.cmd, Cmd::Exec { .. } | Cmd::Trial { .. });
     std::fs::create_dir_all(&cfg.data_dir)?;
 
     match cli.cmd {
@@ -211,6 +245,103 @@ async fn main() -> Result<()> {
                 hw.list().len(),
                 hw.schema_version
             );
+            Ok(())
+        }
+        Cmd::Trial {
+            engine,
+            model,
+            sku,
+            config,
+            workload,
+            repeats,
+            run,
+            json,
+        } => {
+            let store = Store::open(&cfg.db_path(), &cfg.transcripts_dir())?;
+            let hardware = Arc::new(HardwareKb::load()?);
+            let sc = spawn_sidecar(&cfg).await?;
+            let run_id = run.unwrap_or_else(|| format!("adhoc-{}", uuid_short()));
+            let bus = autoinference_core::bus::EventBus::new(run_id.clone(), 0);
+            let mut tcfg = cfg.clone();
+            tcfg.auto_approve = true;
+            let ctx = autoinference_core::tools::ToolContext {
+                cwd: std::env::current_dir()?,
+                config: tcfg,
+                hardware,
+                sidecar: Some(sc),
+                bus: Some(bus.clone()),
+                store: Some(store),
+            };
+            let mut rx = bus.subscribe();
+            let printer = tokio::spawn(async move {
+                while let Some(env) = rx.recv().await {
+                    if json {
+                        let line = serde_json::to_string(&*env).unwrap_or_default();
+                        let mut out = std::io::stdout().lock();
+                        let _ = writeln!(out, "{line}");
+                    } else {
+                        eprintln!("  · {}", env.event.name());
+                    }
+                }
+            });
+            let tool = autoinference_core::tools::trial::TrialRun;
+            use autoinference_core::tools::Tool;
+            let input = serde_json::json!({
+                "engine": engine, "model": model, "sku": sku,
+                "config": serde_json::from_str::<serde_json::Value>(&config).context("--config must be JSON")?,
+                "workload": serde_json::from_str::<serde_json::Value>(&workload).context("--workload must be JSON")?,
+                "repeats": repeats, "source": "seed"
+            });
+            let out = tool.execute(input, &ctx).await?;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            printer.abort();
+            if json {
+                let mut o = std::io::stdout().lock();
+                writeln!(
+                    o,
+                    "{}",
+                    serde_json::to_string(&out.data.unwrap_or_default())?
+                )?;
+            } else {
+                eprintln!("{}", out.content);
+                eprintln!("run: {run_id}");
+            }
+            if out.is_error {
+                anyhow::bail!("trial failed");
+            }
+            Ok(())
+        }
+        Cmd::Runs { cmd } => {
+            let store = Store::open(&cfg.db_path(), &cfg.transcripts_dir())?;
+            match cmd {
+                RunsCmd::List => {
+                    for (run, n) in store.runs_with_candidates(50)? {
+                        eprintln!("{run}  {n} candidates");
+                    }
+                }
+                RunsCmd::Show { run_id } => {
+                    for c in store.candidates_in_run(&run_id)? {
+                        let b = &c["bench"];
+                        eprintln!(
+                            "{}  {:<6} {:<5} tok/s {:>8.1}  p99 {:>7.0} ms  $/1M {:>7.3}  noisy={}  cfg={}",
+                            &c["id"].as_str().unwrap_or("")[..8],
+                            c["engine"].as_str().unwrap_or(""),
+                            c["source"].as_str().unwrap_or(""),
+                            b["tok_s"].as_f64().unwrap_or(0.0),
+                            b["ttft_p99_ms"].as_f64().unwrap_or(0.0),
+                            b["cost_per_1m_tok"].as_f64().unwrap_or(0.0),
+                            b["noisy"].as_bool().unwrap_or(false),
+                            c["config"]
+                        );
+                    }
+                }
+                RunsCmd::Pareto { run_id } => {
+                    let front =
+                        autoinference_core::trial::pareto_front(&store.measured_in_run(&run_id)?);
+                    let mut o = std::io::stdout().lock();
+                    writeln!(o, "{}", serde_json::to_string_pretty(&front)?)?;
+                }
+            }
             Ok(())
         }
         Cmd::Schema => {
@@ -422,6 +553,11 @@ async fn main() -> Result<()> {
             autoinference_tui::run(agent).await
         }
     }
+}
+
+fn uuid_short() -> String {
+    let u = autoinference_core::session::new_id();
+    u[..8].to_string()
 }
 
 async fn spawn_sidecar(cfg: &Config) -> Result<Arc<Sidecar>> {

@@ -46,6 +46,23 @@ pub enum SidecarOp {
     KbSummary,
     /// Probe local GPUs via nvidia-smi if present.
     HwProbe,
+    /// Run one Trial: launch engine (or mock) → warm → measure N repeats → stop. Returns
+    /// `{bench: BenchResult, repeats: [...], engine_log_tail, command}`.
+    TrialRun {
+        engine: String,
+        model: String,
+        sku: String,
+        config: serde_json::Value,
+        workload: serde_json::Value,
+        repeats: u32,
+        timeout_s: u64,
+    },
+    /// Render the launch command an engine would get for this config (no execution).
+    EngineCommand {
+        engine: String,
+        model: String,
+        config: serde_json::Value,
+    },
     Shutdown,
 }
 

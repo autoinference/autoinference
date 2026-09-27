@@ -16,6 +16,8 @@ import cbor2
 from . import PROTOCOL_VERSION
 from .hw import probe as hw_probe
 from .kb import KnobRegistry
+from .engines import LaunchSpec, get_backend
+from .trial import run_trial
 
 MAX_FRAME = 16 * 1024 * 1024
 
@@ -62,6 +64,13 @@ class Server:
             raise SystemExit(0)
         if op == "hw_probe":
             return hw_probe()
+        if op == "trial_run":
+            return run_trial(
+                req["engine"], req["model"], req["sku"], req.get("config") or {}, req.get("workload") or {},
+                int(req.get("repeats") or 3), int(req.get("timeout_s") or 900),
+            )
+        if op == "engine_command":
+            return get_backend(req["engine"]).command(LaunchSpec(req["engine"], req["model"], req.get("config") or {}))
         if op.startswith("kb_"):
             if self.kb is None:
                 raise RuntimeError("no knob registry: AUTOINFERENCE_KB_DIR not set or invalid")

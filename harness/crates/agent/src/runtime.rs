@@ -136,6 +136,8 @@ impl Agent {
             config: b.config.clone(),
             hardware: b.hardware.clone(),
             sidecar: b.sidecar.clone(),
+            bus: Some(bus.clone()),
+            store: Some(b.store.clone()),
         };
         let system_prompt =
             crate::prompt::system_prompt(&b.config, &tools, b.sidecar.is_some(), &b.cwd);

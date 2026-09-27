@@ -15,6 +15,20 @@ use rusqlite::{params, Connection, OptionalExtension};
 use crate::llm::Message;
 use crate::protocol::{Envelope, SessionMetadata};
 
+/// Additive migrations, each idempotent (errors from already-applied steps are ignored).
+const MIGRATIONS: &[&str] = &[
+    "ALTER TABLE bench_results ADD COLUMN spec_hash TEXT",
+    "CREATE INDEX IF NOT EXISTS bench_by_spec ON bench_results(spec_hash)",
+];
+
+fn migrate(conn: &Connection) {
+    for m in MIGRATIONS {
+        if let Err(e) = conn.execute_batch(m) {
+            tracing::debug!(migration = m, error = %e, "migration skipped");
+        }
+    }
+}
+
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
@@ -58,7 +72,7 @@ CREATE TABLE IF NOT EXISTS candidates (
   id TEXT PRIMARY KEY, run_id TEXT, engine TEXT, config_json TEXT, config_hash TEXT, source TEXT, created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS bench_results (
-  id TEXT PRIMARY KEY, candidate_id TEXT, json TEXT, created_at TEXT
+  id TEXT PRIMARY KEY, candidate_id TEXT, spec_hash TEXT, json TEXT, created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS verifications (
   proof_id TEXT PRIMARY KEY, candidate_id TEXT, mode TEXT, passed INTEGER, json TEXT, created_at TEXT
@@ -67,6 +81,10 @@ CREATE TABLE IF NOT EXISTS deployments (
   id TEXT PRIMARY KEY, run_id TEXT, candidate_id TEXT, proof_id TEXT, status TEXT, json TEXT, created_at TEXT
 );
 "#;
+
+pub fn new_id() -> String {
+    uuid::Uuid::now_v7().to_string()
+}
 
 #[derive(Clone)]
 pub struct Store {
@@ -84,6 +102,7 @@ impl Store {
             Connection::open(db_path).with_context(|| format!("open {}", db_path.display()))?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
         conn.execute_batch(SCHEMA)?;
+        migrate(&conn);
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             transcripts_dir: transcripts_dir.to_path_buf(),
@@ -93,6 +112,8 @@ impl Store {
     pub fn in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
         conn.execute_batch(SCHEMA)?;
+        migrate(&conn);
+        migrate(&conn);
         let dir = std::env::temp_dir().join(format!("autoinference-{}", uuid::Uuid::now_v7()));
         std::fs::create_dir_all(&dir)?;
         Ok(Self {
@@ -287,6 +308,100 @@ impl Store {
         .optional()
         .map(|o| o.unwrap_or_default())
         .map_err(Into::into)
+    }
+
+    // ---- domain ledger --------------------------------------------------------------------
+
+    pub fn insert_candidate(
+        &self,
+        id: &str,
+        run_id: &str,
+        engine: &str,
+        config: &serde_json::Value,
+        config_hash: &str,
+        source: &str,
+    ) -> Result<()> {
+        self.conn.lock().unwrap().execute(
+            "INSERT OR REPLACE INTO candidates(id, run_id, engine, config_json, config_hash, source, created_at) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params![id, run_id, engine, serde_json::to_string(config)?, config_hash, source, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
+    pub fn insert_bench_result(
+        &self,
+        id: &str,
+        candidate_id: &str,
+        spec_hash: &str,
+        bench: &crate::protocol::BenchResult,
+    ) -> Result<()> {
+        self.conn.lock().unwrap().execute(
+            "INSERT OR REPLACE INTO bench_results(id, candidate_id, spec_hash, json, created_at) VALUES (?1,?2,?3,?4,?5)",
+            params![id, candidate_id, spec_hash, serde_json::to_string(bench)?, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
+    /// Idempotency: an identical spec measured before returns its candidate id and result.
+    pub fn find_bench_by_spec_hash(
+        &self,
+        spec_hash: &str,
+    ) -> Result<Option<(String, crate::protocol::BenchResult)>> {
+        let conn = self.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT candidate_id, json FROM bench_results WHERE spec_hash = ?1 ORDER BY created_at DESC LIMIT 1",
+            params![spec_hash],
+            |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+        )
+        .optional()
+        .map(|o| o.and_then(|(id, j)| serde_json::from_str(&j).ok().map(|b| (id, b))))
+        .map_err(Into::into)
+    }
+
+    pub fn measured_in_run(&self, run_id: &str) -> Result<Vec<crate::trial::Measured>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT b.candidate_id, b.json FROM bench_results b JOIN candidates c ON c.id = b.candidate_id WHERE c.run_id = ?1 ORDER BY b.created_at",
+        )?;
+        let rows = stmt.query_map(params![run_id], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?;
+        Ok(rows
+            .filter_map(Result::ok)
+            .filter_map(|(id, j)| {
+                serde_json::from_str(&j)
+                    .ok()
+                    .map(|bench| crate::trial::Measured {
+                        candidate_id: id,
+                        bench,
+                    })
+            })
+            .collect())
+    }
+
+    pub fn candidates_in_run(&self, run_id: &str) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT c.id, c.engine, c.config_json, c.config_hash, c.source, c.created_at, b.json FROM candidates c LEFT JOIN bench_results b ON b.candidate_id = c.id WHERE c.run_id = ?1 ORDER BY c.created_at",
+        )?;
+        let rows = stmt.query_map(params![run_id], |r| {
+            Ok(serde_json::json!({
+                "id": r.get::<_, String>(0)?, "engine": r.get::<_, String>(1)?,
+                "config": serde_json::from_str::<serde_json::Value>(&r.get::<_, String>(2)?).unwrap_or_default(),
+                "config_hash": r.get::<_, String>(3)?, "source": r.get::<_, String>(4)?, "created_at": r.get::<_, String>(5)?,
+                "bench": r.get::<_, Option<String>>(6)?.and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok()),
+            }))
+        })?;
+        Ok(rows.filter_map(Result::ok).collect())
+    }
+
+    pub fn runs_with_candidates(&self, limit: usize) -> Result<Vec<(String, i64)>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT run_id, COUNT(*) FROM candidates GROUP BY run_id ORDER BY MAX(created_at) DESC LIMIT ?1")?;
+        let rows = stmt.query_map(params![limit as i64], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+        })?;
+        Ok(rows.filter_map(Result::ok).collect())
     }
 
     /// Cheap stats for `autoinference stats` / the TUI footer.

@@ -6,6 +6,7 @@ pub mod bash;
 pub mod fs;
 pub mod hw;
 pub mod kb;
+pub mod trial;
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -56,6 +57,9 @@ pub struct ToolContext {
     pub config: Config,
     pub hardware: Arc<HardwareKb>,
     pub sidecar: Option<Arc<Sidecar>>,
+    /// Present inside an agent session; domain tools publish events and write the ledger.
+    pub bus: Option<Arc<crate::bus::EventBus>>,
+    pub store: Option<crate::session::Store>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,6 +112,7 @@ impl ToolRegistry {
             r.register(Arc::new(kb::KbConstraints));
             r.register(Arc::new(kb::KbAttentionBackends));
             r.register(Arc::new(hw::HwProbe));
+            r.register(Arc::new(trial::TrialRun));
         }
         r
     }

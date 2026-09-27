@@ -19,6 +19,9 @@ engine source with file:line provenance). If the sidecar is unavailable, say so 
     s.push_str("- Read a file before editing it. Keep shell commands narrow; output is truncated head+tail.\n");
     s.push_str("- Numerical equivalence is a hard gate, tiered: bitwise (kernel rewrite), ulp-bounded (reassociation/fusion), \
 distributional (quantization). Say which tier applies to any change you recommend.\n");
+    s.push_str("- To measure a configuration, call trial_run (engine + model + sku + config + workload). It launches, warms, \
+measures N repeats and returns a typed BenchResult (median + IQR, `noisy` flag, gpu_hours). Identical specs are cached by content hash. \
+Use engine=mock when no GPU is present to exercise the loop; never report mock numbers as real.\n");
     s.push_str("- Never touch production serving, reset GPUs, or change services. Ask before any action outside the workspace.\n\n");
     s.push_str(&format!(
         "Session: model={} access_mode={:?} may_touch_prod={} cwd={}\n",

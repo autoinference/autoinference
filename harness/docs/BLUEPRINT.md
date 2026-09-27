@@ -46,8 +46,8 @@ turn ─► [budget_guard] ─► [tool_calling] ─► [micro_compaction] ─�
 | `hw_query` | `Sku[]` with provenance | ✅ compiled-in TOML, 9 SKUs |
 | `hw_probe` | measured GPUs (nvidia-smi + topology) | ✅ via sidecar |
 | `kb_search` / `kb_constraints` / `kb_attention_backends` | registry rows with `file:line` | ✅ via sidecar over inference-engine-KB |
-| `engine.launch(engine, config)` | `ServerHandle` | next |
-| `bench.run(handle, workload)` | `BenchResult` (typed; median+IQR; `noisy` flag; `gpu_hours`) | next |
+| `engine.launch(engine, config)` | `ServerHandle` | ✅ inside `trial_run` (vllm/sglang/mock backends, sidecar `engines.py`) |
+| `bench.run(handle, workload)` | `BenchResult` (typed; median+IQR; `noisy` flag; `gpu_hours`) | ✅ `trial_run` (stdlib load generator, streaming TTFT/TPOT) |
 | `profile.capture` / `profile.query` | artifact **handle** / ≤2 KB slice | next |
 | `kernel.compile(src, arch)` | `KernelCompileResult` | next |
 | `verify.numeric(ref, cand, mode)` | `VerifyResult` — **not LLM-invokable** | next |
