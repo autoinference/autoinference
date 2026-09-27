@@ -85,7 +85,8 @@ export ANTHROPIC_API_KEY=...
 * **approval modal** — every mutating/hardware tool call asks with the full input, current access mode and prod flag; `y` / `n`
 * **command palette** — type `/` for `/help /bench /timeline /expand /clear /session /quit` with live filtering
 * header: model · session · access badge (green observe / amber tune / red deploy) · shimmering "thinking" state; footer: eased token counters, cost, seq, bus health
-* mouse wheel + PgUp/PgDn scrolling with a scrollbar, prompt history (↑/↓), multi-line input (Alt+Enter), toasts
+* mouse wheel + PgUp/PgDn scrolling with a scrollbar, prompt history (↑/↓), multi-line input (Alt+Enter or Shift+Enter), bracketed paste, toasts
+* keys: `Enter` send · `Tab` cycle side panel · `Shift+Tab` hide it · `Ctrl+B` bench panel · `Ctrl+E` expand tool output · `Ctrl+L` clear · `Esc` cancel turn / close palette · `Ctrl+C` quit · in the approval modal `y` approves and `n`/`Esc` declines (`Enter` deliberately does not approve; keys typed before the modal opened are ignored)
 
 Regression-tested through a PTY harness — `scripts/tui-snapshot.py` drives the real binary in a pseudo-terminal and prints emulated screens.
 

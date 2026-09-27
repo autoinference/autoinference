@@ -134,7 +134,7 @@ pub fn centered(area: Rect, w: u16, h: u16) -> Rect {
 
 /// Modal dialog with a title, body lines and a hint row.
 pub fn modal(f: &mut Frame, area: Rect, title: &str, body: Vec<Line>, hint: &str, accent: Color) {
-    let h = (body.len() as u16 + 4)
+    let h = (body.len() as u16 + 3)
         .min(area.height.saturating_sub(4))
         .max(5);
     let w = 72.min(area.width.saturating_sub(4));
@@ -161,6 +161,13 @@ pub fn modal(f: &mut Frame, area: Rect, title: &str, body: Vec<Line>, hint: &str
 }
 
 pub fn sparkline(f: &mut Frame, area: Rect, title: &str, data: &[u64], color: Color) {
+    // Sparkline draws from the start of the slice; show the most recent `width` samples.
+    let w = area.width.saturating_sub(2) as usize;
+    let data = if data.len() > w {
+        &data[data.len() - w..]
+    } else {
+        data
+    };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(ratatui::widgets::BorderType::Rounded)
@@ -178,7 +185,7 @@ pub fn sparkline(f: &mut Frame, area: Rect, title: &str, data: &[u64], color: Co
 
 /// Pareto scatter: tok/s (y) vs p99 TTFT ms (x). Front points highlighted.
 pub fn pareto_chart(f: &mut Frame, area: Rect, all: &[(f64, f64)], front: &[(f64, f64)]) {
-    if all.is_empty() {
+    if all.is_empty() && front.is_empty() {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
@@ -195,8 +202,8 @@ pub fn pareto_chart(f: &mut Frame, area: Rect, all: &[(f64, f64)], front: &[(f64
         );
         return;
     }
-    let xmax = all.iter().map(|p| p.0).fold(1.0, f64::max) * 1.1;
-    let ymax = all.iter().map(|p| p.1).fold(1.0, f64::max) * 1.1;
+    let xmax = all.iter().chain(front).map(|p| p.0).fold(1.0, f64::max) * 1.1;
+    let ymax = all.iter().chain(front).map(|p| p.1).fold(1.0, f64::max) * 1.1;
     let ds = vec![
         Dataset::default()
             .name("candidates")

@@ -78,11 +78,15 @@ impl Operation for ToolCalling {
             } else {
                 ItemStatus::Completed
             };
-            let output = out
-                .data
-                .clone()
-                .unwrap_or_else(|| json!({"text": out.content}));
-            effects.push(Effect::Emit(Event::ItemCompleted {
+            // Structured data (for dashboards) plus the bounded text the model saw (for humans).
+            let mut output = out.data.clone().unwrap_or_else(|| json!({}));
+            if let Some(obj) = output.as_object_mut() {
+                obj.insert("text".into(), Value::String(out.content.clone()));
+            } else {
+                output = json!({"data": output, "text": out.content});
+            }
+            // Emit now, not as a deferred effect, so per-tool timing is real for batches.
+            rt.emit(Event::ItemCompleted {
                 item: ThreadItem {
                     id: id.clone(),
                     details: ThreadItemDetails::ToolCall {
@@ -92,7 +96,8 @@ impl Operation for ToolCalling {
                         status,
                     },
                 },
-            }));
+            })
+            .await;
             results.push(Block::ToolResult {
                 tool_use_id: id,
                 content: out.content,
@@ -169,19 +174,24 @@ impl Operation for Inference {
             },
         })
         .await;
-        let bus = rt.bus.clone();
-        let iid = item_id.clone();
-        let on_delta: DeltaFn = Arc::new(move |d: &str| {
-            let bus = bus.clone();
-            let iid = iid.clone();
-            let d = d.to_string();
+        // Deltas are published by ONE task in arrival order, and drained before the
+        // completion event, so no subscriber can ever see a delta after `item.completed`.
+        let (dtx, mut drx) = tokio::sync::mpsc::unbounded_channel::<String>();
+        let drain = {
+            let bus = rt.bus.clone();
+            let iid = item_id.clone();
             tokio::spawn(async move {
-                bus.publish(Event::ItemDelta {
-                    item_id: iid,
-                    delta: d,
-                })
-                .await;
-            });
+                while let Some(d) = drx.recv().await {
+                    bus.publish(Event::ItemDelta {
+                        item_id: iid.clone(),
+                        delta: d,
+                    })
+                    .await;
+                }
+            })
+        };
+        let on_delta: DeltaFn = Arc::new(move |d: &str| {
+            let _ = dtx.send(d.to_string());
         });
         let req = ChatRequest {
             model: rt.config.model.clone(),
@@ -190,7 +200,11 @@ impl Operation for Inference {
             tools: rt.tools.specs(),
             max_tokens: 8192,
         };
-        let resp = rt.provider.complete(req, Some(on_delta)).await?;
+        // The provider owns the only clone of `on_delta`; when `complete` returns it is dropped,
+        // the channel closes and the drain task exits after publishing the last delta.
+        let resp = rt.provider.complete(req, Some(on_delta)).await;
+        let _ = drain.await;
+        let resp = resp?;
         let text = resp.message.text();
         let mut effects = vec![
             Effect::Emit(Event::ItemCompleted {

@@ -178,10 +178,11 @@ impl ToolRegistry {
         };
         // Output bounding (opencode/pi spill pattern): keep head + tail, tell the model what was cut.
         let max = ctx.config.max_tool_output_chars;
-        if out.content.len() > max {
-            let head = &out.content[..max / 2];
-            let tail = &out.content[out.content.len() - max / 2..];
-            let cut = out.content.len() - max;
+        let total_chars = out.content.chars().count();
+        if total_chars > max {
+            let head: String = out.content.chars().take(max / 2).collect();
+            let tail: String = out.content.chars().skip(total_chars - max / 2).collect();
+            let cut = total_chars - max;
             out.content = format!("{head}\n\n[... {cut} chars elided — re-query with a narrower command ...]\n\n{tail}");
         }
         out

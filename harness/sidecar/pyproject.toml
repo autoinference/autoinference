@@ -1,6 +1,6 @@
 [project]
 name = "autoinference-sidecar"
-version = "0.0.5"
+version = "0.0.6"
 description = "Out-of-process Python sidecar for autoinference: knob-registry queries, hardware probes, engine adapters."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -11,6 +11,7 @@ dependencies = ["cbor2>=5.6"]
 
 [project.optional-dependencies]
 engines = ["optuna>=3.6", "numpy>=1.26"]
+dev = ["pyte>=0.8", "build>=1.0"]
 
 [project.urls]
 Homepage = "https://autoinference.org"

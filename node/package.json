@@ -1,6 +1,6 @@
 {
   "name": "autoinference",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Agentic CLI for LLM inference optimization on NVIDIA GPUs — engine selection, config tuning, kernel synthesis, validation. npm launcher for the Rust binary.",
   "bin": { "autoinference": "bin/autoinference.js" },
   "main": "index.js",

@@ -152,6 +152,17 @@ impl Tool for TrialRun {
                         exit_code: 1,
                     })
                     .await;
+                    bus.publish(Event::ItemCompleted {
+                        item: ThreadItem {
+                            id: candidate_id.clone(),
+                            details: ThreadItemDetails::BenchmarkRun {
+                                candidate_id: candidate_id.clone(),
+                                status: ItemStatus::Failed,
+                                result: None,
+                            },
+                        },
+                    })
+                    .await;
                     bus.publish(Event::CandidateEvaluated {
                         candidate_id: candidate_id.clone(),
                         bench_result_id: String::new(),
@@ -218,12 +229,6 @@ impl Tool for TrialRun {
             front = crate::trial::pareto_front(&all);
         }
         if let Some(bus) = &ctx.bus {
-            bus.publish(Event::CandidateEvaluated {
-                candidate_id: candidate_id.clone(),
-                bench_result_id: bench_id.clone(),
-                verdict,
-            })
-            .await;
             bus.publish(Event::ItemCompleted {
                 item: ThreadItem {
                     id: candidate_id.clone(),
@@ -233,6 +238,12 @@ impl Tool for TrialRun {
                         result: Some(bench.clone()),
                     },
                 },
+            })
+            .await;
+            bus.publish(Event::CandidateEvaluated {
+                candidate_id: candidate_id.clone(),
+                bench_result_id: bench_id.clone(),
+                verdict,
             })
             .await;
             if !front.is_empty() {

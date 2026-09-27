@@ -50,7 +50,6 @@ enum Row {
         status: ItemStatus,
         started: Instant,
         took: Option<Duration>,
-        expanded: bool,
     },
     Bench {
         candidate: String,
@@ -90,6 +89,10 @@ struct App {
     approval: Option<ApprovalRequest>,
     toast: Option<Toast>,
     expand_tools: bool,
+    /// Until the user picks a panel (Tab/Shift+Tab/slash), the bench panel auto-shows on results.
+    auto_side: bool,
+    /// Keys arriving within this window of a modal opening are ignored (pre-typed keystrokes).
+    modal_opened: Option<Instant>,
 }
 
 const COMMANDS: &[(&str, &str)] = &[
@@ -128,6 +131,8 @@ impl App {
             approval: None,
             toast: None,
             expand_tools: false,
+            auto_side: true,
+            modal_opened: None,
         }
     }
 
@@ -145,11 +150,6 @@ impl App {
 
     fn set_expand(&mut self, on: bool) {
         self.expand_tools = on;
-        for r in self.rows.iter_mut() {
-            if let Row::Tool { expanded, .. } = r {
-                *expanded = on;
-            }
-        }
     }
 
     fn on_event(&mut self, env: &Envelope) {
@@ -166,19 +166,25 @@ impl App {
                     done: false,
                 }),
                 ThreadItemDetails::ToolCall { tool, input, .. } => {
-                    let summary = input
-                        .get("command")
-                        .or(input.get("query"))
-                        .or(input.get("path"))
-                        .or(input.get("sku"))
-                        .and_then(|v| v.as_str())
-                        .map(String::from)
-                        .unwrap_or_else(|| {
-                            input
-                                .get("config")
-                                .map(|c| c.to_string())
-                                .unwrap_or_default()
-                        });
+                    let summary = if let Some(cfg) = input.get("config") {
+                        format!(
+                            "{} · {} · {}",
+                            input.get("engine").and_then(|v| v.as_str()).unwrap_or("?"),
+                            input.get("sku").and_then(|v| v.as_str()).unwrap_or("?"),
+                            cfg
+                        )
+                    } else {
+                        input
+                            .get("command")
+                            .or(input.get("query"))
+                            .or(input.get("path"))
+                            .or(input.get("sku"))
+                            .or(input.get("engine"))
+                            .and_then(|v| v.as_str())
+                            .map(String::from)
+                            .unwrap_or_default()
+                    };
+                    let summary = sanitize(&summary);
                     self.rows.push(Row::Tool {
                         id: item.id.clone(),
                         tool: tool.clone(),
@@ -187,7 +193,6 @@ impl App {
                         status: ItemStatus::InProgress,
                         started: Instant::now(),
                         took: None,
-                        expanded: self.expand_tools,
                     });
                 }
                 ThreadItemDetails::BenchmarkRun { candidate_id, .. } => {
@@ -289,23 +294,29 @@ impl App {
                     .ok()
                     .and_then(|x| x.as_str().map(String::from))
                     .unwrap_or_default();
-                if let Some(Row::Bench { verdict: vv, .. }) = self.rows.iter_mut().rev().find(
+                if let Some(Row::Bench {
+                    verdict: vv, line, ..
+                }) = self.rows.iter_mut().rev().find(
                     |x| matches!(x, Row::Bench { candidate, .. } if candidate == candidate_id),
                 ) {
                     *vv = v.clone();
+                    if v == "failed" {
+                        *line = "trial failed — see the tool card above".into();
+                    }
                 }
                 if let Some(c) = self.candidates.iter_mut().find(|c| &c.3 == candidate_id) {
                     c.2 = v;
                 }
-                self.side_mode = 1;
-                self.show_side = true;
+                if self.auto_side && !self.candidates.is_empty() {
+                    self.side_mode = 1;
+                    self.show_side = true;
+                }
             }
             Event::ParetoUpdated { front, .. } => {
                 self.front = front.iter().map(|p| (p.p99_ms, p.tok_s)).collect()
             }
             Event::TurnCompleted { usage, .. } => {
-                self.tokens_in_t += usage.input_tokens as f64 + usage.cached_input_tokens as f64;
-                self.tokens_out_t += usage.output_tokens as f64;
+                let _ = usage;
                 self.busy = false;
             }
             Event::TurnFailed { error, .. } => {
@@ -345,6 +356,23 @@ impl App {
     }
 }
 
+/// Strip control characters that would corrupt rows (ratatui drops them silently but width
+/// bookkeeping does not); tabs become spaces, newlines are preserved.
+fn sanitize(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '\t' => ' ',
+            '\n' => '\n',
+            c if c.is_control() => '\u{FFFD}',
+            c => c,
+        })
+        .collect()
+}
+
+fn width(s: &str) -> usize {
+    unicode_width::UnicodeWidthStr::width(s)
+}
+
 fn byte_idx(s: &str, cursor: usize) -> usize {
     s.char_indices()
         .nth(cursor)
@@ -353,8 +381,24 @@ fn byte_idx(s: &str, cursor: usize) -> usize {
 }
 
 fn preview_output(v: &serde_json::Value) -> String {
-    if let Some(t) = v.get("text").and_then(|t| t.as_str()) {
-        return t.to_string();
+    let text = v
+        .get("text")
+        .and_then(|t| t.as_str())
+        .map(sanitize)
+        .unwrap_or_default();
+    let header = preview_header(v);
+    match (header.is_empty(), text.is_empty()) {
+        (true, true) => String::new(),
+        (true, false) => text,
+        (false, true) => header,
+        (false, false) => format!("{header}\n{text}"),
+    }
+}
+
+/// One-line structured summary when the tool returned typed data.
+fn preview_header(v: &serde_json::Value) -> String {
+    if v.get("text").is_some() && v.as_object().map(|o| o.len() == 1).unwrap_or(false) {
+        return String::new();
     }
     if let Some(b) = v.get("bench") {
         return format!(
@@ -377,13 +421,15 @@ fn preview_output(v: &serde_json::Value) -> String {
             .filter_map(|r| r.get("name").and_then(|n| n.as_str()))
             .take(5)
             .collect();
-        return format!(
-            "{} results · {}",
-            v.get("total")
-                .and_then(|t| t.as_u64())
-                .unwrap_or(res.len() as u64),
-            names.join(", ")
-        );
+        let total = v
+            .get("total")
+            .and_then(|t| t.as_u64())
+            .unwrap_or(res.len() as u64);
+        return if names.is_empty() {
+            format!("{total} results")
+        } else {
+            format!("{total} results · {}", names.join(", "))
+        };
     }
     if let Some(cmd) = v.get("command").filter(|_| v.get("exit_code").is_some()) {
         return format!(
@@ -398,9 +444,12 @@ fn preview_output(v: &serde_json::Value) -> String {
     if v.is_array() {
         return format!("{} results", v.as_array().map(|a| a.len()).unwrap_or(0));
     }
+    if v.get("text").is_some() {
+        return String::new();
+    }
     let s = v.to_string();
-    if s.len() > 400 {
-        format!("{}…", &s[..400])
+    if s.chars().count() > 400 {
+        format!("{}…", s.chars().take(400).collect::<String>())
     } else {
         s
     }
@@ -423,20 +472,55 @@ pub async fn run(
         });
     }
 
+    struct TermGuard;
+    impl Drop for TermGuard {
+        fn drop(&mut self) {
+            let _ = crossterm::execute!(
+                std::io::stdout(),
+                DisableMouseCapture,
+                crossterm::event::DisableBracketedPaste
+            );
+            ratatui::restore();
+        }
+    }
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = crossterm::execute!(
+            std::io::stdout(),
+            DisableMouseCapture,
+            crossterm::event::DisableBracketedPaste
+        );
+        ratatui::restore();
+        prev_hook(info);
+    }));
     let mut terminal = ratatui::init();
-    let _ = crossterm::execute!(std::io::stdout(), EnableMouseCapture);
+    let _guard = TermGuard;
+    let _ = crossterm::execute!(
+        std::io::stdout(),
+        EnableMouseCapture,
+        crossterm::event::EnableBracketedPaste
+    );
     let mut events = EventStream::new();
     let mut app = App::new();
     let mut tick = tokio::time::interval(Duration::from_millis(33));
+    let mut snap = agent.snapshot().await;
+    let mut last_snap = Instant::now();
 
     let result: Result<()> = loop {
         app.tick += 1;
+        // Authoritative counters come from the snapshot (persisted usage), eased for display.
+        app.tokens_in_t =
+            (snap.usage_total.input_tokens + snap.usage_total.cached_input_tokens) as f64;
+        app.tokens_out_t = snap.usage_total.output_tokens as f64;
         app.tokens_in = widgets::ease(app.tokens_in, app.tokens_in_t);
         app.tokens_out = widgets::ease(app.tokens_out, app.tokens_out_t);
         if app.toast.as_ref().is_some_and(|t| Instant::now() > t.until) {
             app.toast = None;
         }
-        let snap = agent.snapshot().await;
+        if last_snap.elapsed() > Duration::from_millis(200) || app.tick < 3 {
+            snap = agent.snapshot().await;
+            last_snap = Instant::now();
+        }
         let drops = agent
             .rt
             .bus
@@ -448,15 +532,17 @@ pub async fn run(
         tokio::select! {
             _ = tick.tick() => {}
             Some(env) = rx.recv() => app.on_event(&env),
-            Some(req) = approvals.recv(), if app.approval.is_none() => { app.approval = Some(req); }
-            Some(r) = done_rx.recv() => { if let Err(e) = r { app.rows.push(Row::System(format!("error: {e:#}"))); } app.busy = false; }
+            Some(req) = approvals.recv(), if app.approval.is_none() => { app.approval = Some(req); app.modal_opened = Some(Instant::now()); }
+            Some(r) = done_rx.recv() => { if let Err(e) = r { let already = matches!(app.rows.last(), Some(Row::System(t)) if t.starts_with("turn failed")); if !already { app.rows.push(Row::System(format!("error: {e:#}"))); } } app.busy = false; }
             Some(ev) = events.next() => {
                 match ev {
                     Ok(CEvent::Key(KeyEvent { code, modifiers, .. })) => {
                         if let Some(req) = app.approval.take() {
+                            let fresh = app.modal_opened.map(|t| t.elapsed() > Duration::from_millis(350)).unwrap_or(true);
                             match code {
-                                KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => { let tool = req.tool.clone(); let _ = req.respond.send(true); app.toast(format!("approved {tool}"), true); }
-                                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => { let tool = req.tool.clone(); let _ = req.respond.send(false); app.toast(format!("declined {tool}"), false); }
+                                KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => { let _ = req.respond.send(false); break Ok(()); }
+                                KeyCode::Char('y') | KeyCode::Char('Y') if fresh => { let tool = req.tool.clone(); let _ = req.respond.send(true); app.modal_opened = None; app.toast(format!("approved {tool}"), true); }
+                                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc if fresh => { let tool = req.tool.clone(); let _ = req.respond.send(false); app.modal_opened = None; app.toast(format!("declined {tool}"), false); }
                                 _ => { app.approval = Some(req); }
                             }
                             continue;
@@ -466,16 +552,18 @@ pub async fn run(
                             KeyCode::Char('l') if modifiers.contains(KeyModifiers::CONTROL) => { app.rows.clear(); }
                             KeyCode::Char('b') if modifiers.contains(KeyModifiers::CONTROL) => { app.side_mode = 1; app.show_side = true; }
                             KeyCode::Char('e') if modifiers.contains(KeyModifiers::CONTROL) => { let on = !app.expand_tools; app.set_expand(on); }
-                            KeyCode::Tab => { if app.show_side { app.side_mode = (app.side_mode + 1) % 2; } else { app.show_side = true; } }
-                            KeyCode::BackTab => { app.show_side = !app.show_side; }
-                            KeyCode::Esc => { if app.palette_open || app.input.starts_with('/') { app.palette_open = false; app.input.clear(); app.cursor = 0; } else if app.busy { agent.cancel(); app.toast("cancelling turn…", false); } }
+                            KeyCode::Tab => { app.auto_side = false; if app.show_side { app.side_mode = (app.side_mode + 1) % 2; } else { app.show_side = true; } }
+                            KeyCode::BackTab => { app.auto_side = false; app.show_side = !app.show_side; }
+                            KeyCode::Esc => { if app.palette_open || app.input.starts_with('/') { app.palette_open = false; app.input.clear(); app.cursor = 0; } else if app.busy { if let Some(req) = app.approval.take() { let _ = req.respond.send(false); } agent.cancel(); app.toast("cancelling turn…", false); } }
                             KeyCode::Enter if modifiers.contains(KeyModifiers::ALT) || modifiers.contains(KeyModifiers::SHIFT) => app.insert('\n'),
                             KeyCode::Enter => {
                                 let text = app.input.trim().to_string();
                                 if text.is_empty() { continue; }
                                 if app.palette_open {
-                                    if let Some((cmd, _)) = app.suggestions().first().copied() { app.input = cmd.to_string(); app.cursor = app.input.chars().count(); app.palette_open = false; }
-                                    continue;
+                                    app.palette_open = false;
+                                    if let Some((cmd, _)) = app.suggestions().first().copied() {
+                                        if cmd != text { app.input = cmd.to_string(); app.cursor = app.input.chars().count(); continue; }
+                                    }
                                 }
                                 app.input.clear(); app.cursor = 0; app.palette_open = false;
                                 app.history.push(text.clone()); app.hist_idx = None;
@@ -483,8 +571,8 @@ pub async fn run(
                                     match cmd.split_whitespace().next().unwrap_or("") {
                                         "quit" | "exit" => break Ok(()),
                                         "clear" => app.rows.clear(),
-                                        "bench" => { app.side_mode = 1; app.show_side = true; }
-                                        "timeline" => { app.side_mode = 0; app.show_side = true; }
+                                        "bench" => { app.auto_side = false; app.side_mode = 1; app.show_side = true; }
+                                        "timeline" => { app.auto_side = false; app.side_mode = 0; app.show_side = true; }
                                         "expand" => { let on = !app.expand_tools; app.set_expand(on); }
                                         "session" => app.rows.push(Row::System(format!("session {}  model {}  access {:?}  turns {}", snap.metadata.id, snap.model, snap.blast_radius.mode, snap.turn_count))),
                                         _ => app.rows.push(Row::System(COMMANDS.iter().map(|(c, d)| format!("{c:<10} {d}")).collect::<Vec<_>>().join("\n") + "\n\nkeys: Enter send · Alt+Enter newline · Tab cycle side panel · Shift+Tab hide · Ctrl+E expand tools · Ctrl+L clear · PgUp/PgDn scroll · Esc cancel · Ctrl+C quit")),
@@ -515,7 +603,7 @@ pub async fn run(
                             }
                             KeyCode::PageUp => app.scroll_from_bottom = app.scroll_from_bottom.saturating_add(8),
                             KeyCode::PageDown => app.scroll_from_bottom = app.scroll_from_bottom.saturating_sub(8),
-                            KeyCode::Char(c) => app.insert(c),
+                            KeyCode::Char(c) if !c.is_control() => app.insert(c),
                             _ => {}
                         }
                     }
@@ -524,22 +612,28 @@ pub async fn run(
                         MouseEventKind::ScrollDown => app.scroll_from_bottom = app.scroll_from_bottom.saturating_sub(3),
                         _ => {}
                     },
-                    Ok(CEvent::Paste(s)) => { for c in s.chars() { app.insert(c); } }
+                    Ok(CEvent::Paste(s)) => { for c in sanitize(&s).chars() { app.insert(c); } }
                     Ok(_) => {}
                     Err(e) => break Err(e.into()),
                 }
             }
         }
     };
-    let _ = crossterm::execute!(std::io::stdout(), DisableMouseCapture);
-    ratatui::restore();
+    drop(terminal);
     result
 }
 
 fn draw(f: &mut Frame, app: &mut App, snap: &autoinference_protocol::SessionSnapshot, drops: u64) {
     let area = f.area();
     f.render_widget(Block::default().style(Style::default().bg(theme::BG)), area);
-    let input_h = (app.input.lines().count().max(1) as u16 + 2).min(8);
+    let iw = area.width.saturating_sub(2).max(1) as usize;
+    let input_lines: usize = app
+        .input
+        .split('\n')
+        .map(|l| width(l).div_ceil(iw).max(1))
+        .sum::<usize>()
+        .max(1);
+    let input_h = (input_lines as u16 + 2).min(10);
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -626,12 +720,12 @@ fn draw(f: &mut Frame, app: &mut App, snap: &autoinference_protocol::SessionSnap
         .title(Span::styled(title, theme::muted()));
     let inner = block.inner(rows[2]);
     let shown = if app.input.is_empty() {
-        Line::from(Span::styled(
+        ratatui::text::Text::from(Span::styled(
             "Ask about an engine, a config, a kernel — or `trial: b200 {\"max-num-seqs\":256}`",
             theme::dim(),
         ))
     } else {
-        Line::from(app.input.clone())
+        ratatui::text::Text::from(app.input.clone())
     };
     f.render_widget(
         Paragraph::new(shown)
@@ -669,7 +763,7 @@ fn draw(f: &mut Frame, app: &mut App, snap: &autoinference_protocol::SessionSnap
     f.render_widget(Paragraph::new(footer), rows[3]);
 
     if let Some(t) = &app.toast {
-        let w = (t.text.len() as u16 + 4).min(area.width);
+        let w = (width(&t.text) as u16 + 4).min(area.width);
         let r = Rect {
             x: area.width.saturating_sub(w + 1),
             y: 1,
@@ -717,7 +811,11 @@ fn draw(f: &mut Frame, app: &mut App, snap: &autoinference_protocol::SessionSnap
                     } else {
                         "no"
                     },
-                    theme::bold(theme::OK),
+                    theme::bold(if snap.blast_radius.may_touch_prod {
+                        theme::ERR
+                    } else {
+                        theme::OK
+                    }),
                 ),
             ]),
         ]);
@@ -830,7 +928,6 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                 status,
                 started,
                 took,
-                expanded,
                 ..
             } => {
                 let (icon, color) = match status {
@@ -857,7 +954,7 @@ fn draw_chat(f: &mut Frame, app: &mut App, area: Rect) {
                     Span::styled(format!("  {dur:.1}s"), theme::dim()),
                 ]));
                 if !output.is_empty() {
-                    let max = if *expanded { 60 } else { 3 };
+                    let max = if app.expand_tools { 60 } else { 3 };
                     let n = output.lines().count();
                     for l in output.lines().take(max) {
                         let st = if l.starts_with('+') {

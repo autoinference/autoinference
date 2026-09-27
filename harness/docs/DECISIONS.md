@@ -142,3 +142,11 @@ command palette. The TUI stays a pure bus subscriber. **Verified** with `scripts
 bugs before shipping (late stream deltas duplicating text, pareto points recorded before results,
 wrong previews). **Modeled on** codex `tui/` (ratatui), grok-build dashboard view, opencode/pi
 polish; markdown rendering inspired by pi's TUI.
+
+## 18. Approval modal: explicit `y`, never Enter, and a keystroke quarantine
+**Decision.** Only `y` approves; `Enter` does not. Key events in the first 350 ms after the modal
+opens are ignored, so keystrokes queued while the agent was thinking cannot approve a hardware
+action by accident. `Ctrl+C` in the modal declines and quits; cancelling a turn (`Esc`) declines
+any pending approval first. **Why.** Found by review (candidate K5–K7): a user typing ahead could
+silently approve `trial_run` on real GPUs. Provenance: gemini-cli scheduler `awaiting_approval`
+state and codex `exec_approval` — approval is a distinct state, not a keypress race.

@@ -26,6 +26,13 @@ jobs:
       - run: cargo build --release
       - name: schema export is deterministic
         run: ./target/release/autoinference schema > /tmp/schema.json && test -s /tmp/schema.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: TUI PTY snapshot (intro, palette, help)
+        run: |
+          pip install pyte cbor2
+          AUTOINFERENCE_NO_SIDECAR=1 python scripts/tui-snapshot.py --steps intro,palette,help,quit --cols 100 --rows 30
 
   sidecar:
     runs-on: ubuntu-latest

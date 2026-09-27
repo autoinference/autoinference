@@ -60,7 +60,7 @@ pub fn render(md: &str, width: usize) -> Vec<Line<'static>> {
                 h.to_uppercase(),
                 theme::bold(theme::ACCENT).add_modifier(Modifier::UNDERLINED),
             )));
-        } else if t.starts_with('|') && t.ends_with('|') {
+        } else if t.len() >= 2 && t.starts_with('|') && t.ends_with('|') {
             let cells: Vec<&str> = t[1..t.len() - 1].split('|').map(str::trim).collect();
             if cells
                 .iter()
@@ -140,10 +140,11 @@ fn code_spans(line: &str) -> Vec<Span<'static>> {
         "false", "None", "self",
     ];
     let mut spans = vec![];
-    if let Some(i) = line
-        .find("//")
-        .or_else(|| line.find('#').filter(|&i| !line[..i].contains('"')))
-    {
+    if let Some(i) = line.find("//").or_else(|| {
+        line.find('#').filter(|&i| {
+            !line[..i].contains('"') && (i == 0 || line[..i].ends_with(char::is_whitespace))
+        })
+    }) {
         spans.extend(code_spans(&line[..i]));
         spans.push(Span::styled(
             line[i..].to_string(),
@@ -225,7 +226,7 @@ pub fn inline(t: &str) -> Vec<Span<'static>> {
                 }
                 spans.push(Span::styled(b, base.add_modifier(Modifier::BOLD)));
             }
-            '*' => {
+            '*' if chars.clone().any(|d| d == '*') => {
                 push(&mut buf, &mut spans, base);
                 let mut b = String::new();
                 for d in chars.by_ref() {

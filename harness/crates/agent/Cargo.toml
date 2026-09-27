@@ -10,8 +10,8 @@ keywords = ["llm", "inference", "vllm", "sglang", "agent"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
-autoinference-protocol = { path = "../protocol", version = "0.0.5" }
-autoinference-core = { path = "../core", version = "0.0.5" }
+autoinference-protocol = { path = "../protocol", version = "0.0.6" }
+autoinference-core = { path = "../core", version = "0.0.6" }
 anyhow.workspace = true
 async-trait.workspace = true
 tokio.workspace = true
