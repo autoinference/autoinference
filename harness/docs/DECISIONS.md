@@ -131,3 +131,14 @@ an install hint; there is no silent downgrade. `scripts/deploy-check.sh` encodes
 (`STRESS=1` → AIPerf). **Why.** Per-commit checks must be fast enough to run always; the robust tier
 must be trustworthy enough to gate a deployment. Flags and metric tags were verified against the
 mirrored sources in inference-engine-KB (`repos/aiperf`, `repos/vllm`, `repos/sglang`).
+
+## 17. The TUI is a product surface, and it is tested through a PTY
+**Decision.** A single premium dark theme (`tui/theme.rs`, brand gradient cyan→violet), streaming
+markdown, animated tool/trial cards, a benchmark panel (sparkline + pareto scatter), an event
+timeline, an approval modal fed by an async approval seam in core (`ApprovalFn` returns a future;
+the REPL answers from stdin via `spawn_blocking`, the TUI from a modal over a channel), and a slash
+command palette. The TUI stays a pure bus subscriber. **Verified** with `scripts/tui-snapshot.py`
+(pty + pyte) — the same approach as grok-build's `xai-grok-pager-pty-harness` — which caught three
+bugs before shipping (late stream deltas duplicating text, pareto points recorded before results,
+wrong previews). **Modeled on** codex `tui/` (ratatui), grok-build dashboard view, opencode/pi
+polish; markdown rendering inspired by pi's TUI.

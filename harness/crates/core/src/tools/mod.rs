@@ -83,7 +83,9 @@ pub trait Tool: Send + Sync {
     async fn execute(&self, input: Value, ctx: &ToolContext) -> Result<ToolOutput>;
 }
 
-pub type ApprovalFn = Arc<dyn Fn(&str, &Value) -> bool + Send + Sync>;
+/// Async approval hook: the TUI answers from a modal, the REPL from stdin (spawn_blocking).
+pub type ApprovalFn =
+    Arc<dyn Fn(String, Value) -> futures::future::BoxFuture<'static, bool> + Send + Sync>;
 
 pub struct ToolRegistry {
     tools: BTreeMap<&'static str, Arc<dyn Tool>>,
@@ -165,7 +167,7 @@ impl ToolRegistry {
         }
         if risk != Risk::ReadOnly && !ctx.config.auto_approve {
             if let Some(approve) = &self.approve {
-                if !approve(name, &input) {
+                if !approve(name.to_string(), input.clone()).await {
                     return ToolOutput::err(format!("declined: user did not approve `{name}`"));
                 }
             }

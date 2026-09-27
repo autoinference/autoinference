@@ -558,8 +558,29 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Cmd::Tui { session } => {
-            let agent = build_agent(&cfg, session, !cli.no_sidecar).await?;
-            autoinference_tui::run(agent).await
+            // Approvals go to the TUI modal instead of stdin.
+            let (atx, arx) =
+                tokio::sync::mpsc::unbounded_channel::<autoinference_tui::ApprovalRequest>();
+            let approver: autoinference_core::tools::ApprovalFn =
+                Arc::new(move |tool: String, input: serde_json::Value| {
+                    let atx = atx.clone();
+                    Box::pin(async move {
+                        let (tx, rx) = tokio::sync::oneshot::channel();
+                        if atx
+                            .send(autoinference_tui::ApprovalRequest {
+                                tool,
+                                input,
+                                respond: tx,
+                            })
+                            .is_err()
+                        {
+                            return false;
+                        }
+                        rx.await.unwrap_or(false)
+                    })
+                });
+            let agent = build_agent_with(&cfg, session, !cli.no_sidecar, Some(approver)).await?;
+            autoinference_tui::run(agent, arx).await
         }
     }
 }
@@ -582,6 +603,15 @@ async fn build_agent(
     session: Option<String>,
     want_sidecar: bool,
 ) -> Result<Arc<Agent>> {
+    build_agent_with(cfg, session, want_sidecar, None).await
+}
+
+async fn build_agent_with(
+    cfg: &Config,
+    session: Option<String>,
+    want_sidecar: bool,
+    approver: Option<autoinference_core::tools::ApprovalFn>,
+) -> Result<Arc<Agent>> {
     let provider = make_provider(&cfg.provider)?;
     let store = Store::open(&cfg.db_path(), &cfg.transcripts_dir())?;
     let hardware = Arc::new(HardwareKb::load()?);
@@ -597,15 +627,23 @@ async fn build_agent(
         None
     };
     let mut tools = autoinference_core::tools::ToolRegistry::standard(sidecar.is_some());
-    if !cfg.auto_approve {
-        tools.set_approver(Arc::new(|name: &str, input: &serde_json::Value| {
-            eprint!(
-                "\n[approve] {name} {} ? [y/N] ",
-                serde_json::to_string(input).unwrap_or_default()
-            );
-            let mut line = String::new();
-            let _ = std::io::stdin().read_line(&mut line);
-            matches!(line.trim(), "y" | "Y" | "yes")
+    if let Some(a) = approver {
+        tools.set_approver(a);
+    } else if !cfg.auto_approve {
+        tools.set_approver(Arc::new(|name: String, input: serde_json::Value| {
+            Box::pin(async move {
+                tokio::task::spawn_blocking(move || {
+                    eprint!(
+                        "\n[approve] {name} {} ? [y/N] ",
+                        serde_json::to_string(&input).unwrap_or_default()
+                    );
+                    let mut line = String::new();
+                    let _ = std::io::stdin().read_line(&mut line);
+                    matches!(line.trim(), "y" | "Y" | "yes")
+                })
+                .await
+                .unwrap_or(false)
+            })
         }));
     }
     Agent::build(AgentBuilder {

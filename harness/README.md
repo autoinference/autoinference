@@ -72,6 +72,23 @@ export ANTHROPIC_API_KEY=...
 | `runs list\|show RUN\|pareto RUN` | candidates, results and the pareto front of a tuning run |
 | `schema` | JSON Schema of the event envelope → generate dashboard types from it |
 
+## The TUI
+
+`autoinference tui` — a full-screen ratatui interface designed to feel like a product, not a debug view:
+
+* **animated intro** — gradient logo sweep, brand cyan→violet accents throughout
+* **streaming markdown** — headings, lists, tables, fenced code with a language tag and light token colouring; blinking caret while the model streams
+* **tool cards** — braille spinner while running, ✓/✗ on completion, elapsed time, 3-line output preview with +/− diff colouring, `Ctrl+E` to expand
+* **trial cards** — verdict badge (improved / regressed / no_change / failed) and the typed result line
+* **bench panel** (`Tab`) — live `bench.sample` sparkline, pareto scatter (tok/s vs p99 TTFT, front highlighted), last candidates, best-vs-latest meter
+* **timeline panel** — every bus event with its seq and delivery tier (● must-deliver · lossy)
+* **approval modal** — every mutating/hardware tool call asks with the full input, current access mode and prod flag; `y` / `n`
+* **command palette** — type `/` for `/help /bench /timeline /expand /clear /session /quit` with live filtering
+* header: model · session · access badge (green observe / amber tune / red deploy) · shimmering "thinking" state; footer: eased token counters, cost, seq, bus health
+* mouse wheel + PgUp/PgDn scrolling with a scrollbar, prompt history (↑/↓), multi-line input (Alt+Enter), toasts
+
+Regression-tested through a PTY harness — `scripts/tui-snapshot.py` drives the real binary in a pseudo-terminal and prints emulated screens.
+
 ## Load-test tiers (incremental vs robust)
 
 Every trial picks a load generator; all tiers return the same `BenchResult` shape so runs are comparable.
