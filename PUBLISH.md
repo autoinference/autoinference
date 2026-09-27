@@ -112,3 +112,44 @@ cargo search autoinference
 ## After all 4 are claimed
 
 Push a 0.0.2 anywhere you change package metadata. Squatting-policy reminder: PyPI (PEP 541), npm, and crates.io can reclaim names that stay empty long-term, so push real code as soon as you have it.
+
+---
+
+## 5. The harness (from v0.0.2 on) — tag-driven releases
+
+Everything below runs automatically from `.github/workflows/release.yml` when you push a tag:
+
+```bash
+git tag v0.0.2 && git push origin v0.0.2
+```
+
+That builds `autoinference` binaries for macOS (arm64, x64) and Linux (x64, arm64), attaches them to a
+GitHub Release, and then publishes to each registry **only if its token is configured** as a repo secret
+(missing tokens are skipped with a notice, never a failure):
+
+| Secret | Registry | How to get it |
+| --- | --- | --- |
+| `CARGO_REGISTRY_TOKEN` | crates.io (`autoinference-protocol` → `-core` → `-agent` → `-tui` → `autoinference`) | https://crates.io/settings/tokens (scope: publish-new + publish-update) |
+| `NPM_TOKEN` | npm `autoinference` (binary launcher: postinstall downloads the release asset) | https://www.npmjs.com/settings/~/tokens (Automation token) |
+| `PYPI_TOKEN` | PyPI `autoinference-sidecar` + `autoinference` umbrella | https://pypi.org/manage/account/token/ |
+
+Add them once with:
+
+```bash
+gh secret set CARGO_REGISTRY_TOKEN
+gh secret set NPM_TOKEN
+gh secret set PYPI_TOKEN
+```
+
+Manual equivalents from a logged-in laptop (`cargo login`, `npm login`, `~/.pypirc` with a token):
+
+```bash
+cd harness && for c in autoinference-protocol autoinference-core autoinference-agent autoinference-tui autoinference; do cargo publish -p $c; sleep 30; done
+cd node && npm publish --access public --ignore-scripts
+cd harness/sidecar && python -m build && twine upload dist/*
+cd python && python -m build && twine upload dist/*
+```
+
+Version bumps: `harness/Cargo.toml` (`[workspace.package] version`), `node/package.json`,
+`python/pyproject.toml`, `harness/sidecar/pyproject.toml` — the npm launcher downloads the release asset
+for **its own** version, so keep the npm version equal to the git tag.

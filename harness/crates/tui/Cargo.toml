@@ -3,11 +3,16 @@ name = "autoinference-tui"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "ratatui terminal UI for autoinference."
+readme = "../../README.md"
+keywords = ["llm", "inference", "vllm", "sglang", "agent"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
-autoinference-protocol = { path = "../protocol" }
-autoinference-core = { path = "../core" }
-autoinference-agent = { path = "../agent" }
+autoinference-protocol = { path = "../protocol", version = "0.0.2" }
+autoinference-core = { path = "../core", version = "0.0.2" }
+autoinference-agent = { path = "../agent", version = "0.0.2" }
 anyhow.workspace = true
 tokio.workspace = true
 futures.workspace = true

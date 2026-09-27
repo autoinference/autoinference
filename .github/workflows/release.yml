@@ -1,0 +1,130 @@
+name: release
+
+# Tag `vX.Y.Z` → build binaries → GitHub Release → publish to every registry whose token exists.
+# Registry steps are skipped (not failed) when the secret is absent, so the release always ships.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  binaries:
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: macos-13, target: x86_64-apple-darwin }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: harness
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: harness
+      - run: cargo build --release --target ${{ matrix.target }} -p autoinference
+      - name: package
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/autoinference dist/
+          cp ../LICENSE README.md dist/
+          tar -C dist -czf autoinference-${{ matrix.target }}.tar.gz autoinference LICENSE README.md
+          shasum -a 256 autoinference-${{ matrix.target }}.tar.gz > autoinference-${{ matrix.target }}.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: harness/autoinference-${{ matrix.target }}.tar.gz*
+
+  github-release:
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: assets/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+  crates-io:
+    needs: github-release
+    runs-on: ubuntu-latest
+    if: ${{ vars.PUBLISH_CRATES != 'false' }}
+    defaults:
+      run:
+        working-directory: harness
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: publish (in dependency order)
+        if: ${{ env.CARGO_REGISTRY_TOKEN != '' }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          for c in autoinference-protocol autoinference-core autoinference-agent autoinference-tui autoinference; do
+            cargo publish -p $c --no-verify || echo "::warning::$c publish skipped (already published?)"
+            sleep 30   # let the index catch up before the dependent crate
+          done
+      - if: ${{ env.CARGO_REGISTRY_TOKEN == '' }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: echo "::notice::CARGO_REGISTRY_TOKEN not set — skipping crates.io"
+
+  npm:
+    needs: github-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: publish launcher
+        if: ${{ env.NODE_AUTH_TOKEN != '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        working-directory: node
+        run: npm publish --access public --ignore-scripts
+      - if: ${{ env.NODE_AUTH_TOKEN == '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: echo "::notice::NPM_TOKEN not set — skipping npm"
+
+  pypi:
+    needs: github-release
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - name: build sidecar + umbrella
+        run: |
+          (cd harness/sidecar && python -m build)
+          (cd python && python -m build)
+      - name: publish (API token, or trusted publishing if configured)
+        if: ${{ env.TWINE_PASSWORD != '' }}
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          twine upload --skip-existing harness/sidecar/dist/*
+          twine upload --skip-existing python/dist/*
+      - if: ${{ env.TWINE_PASSWORD == '' }}
+        env:
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: echo "::notice::PYPI_TOKEN not set — skipping PyPI"

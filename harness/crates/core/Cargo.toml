@@ -3,9 +3,14 @@ name = "autoinference-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Core runtime for autoinference: two-tier event bus, SQLite sessions, tools, LLM providers, hardware KB, sidecar client."
+readme = "../../README.md"
+keywords = ["llm", "inference", "vllm", "sglang", "agent"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
-autoinference-protocol = { path = "../protocol" }
+autoinference-protocol = { path = "../protocol", version = "0.0.2" }
 anyhow.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true

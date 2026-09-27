@@ -3,10 +3,15 @@ name = "autoinference-agent"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Composable state-machine agent loop for autoinference (goose-style operations, pi-style durability)."
+readme = "../../README.md"
+keywords = ["llm", "inference", "vllm", "sglang", "agent"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
-autoinference-protocol = { path = "../protocol" }
-autoinference-core = { path = "../core" }
+autoinference-protocol = { path = "../protocol", version = "0.0.2" }
+autoinference-core = { path = "../core", version = "0.0.2" }
 anyhow.workspace = true
 async-trait.workspace = true
 tokio.workspace = true

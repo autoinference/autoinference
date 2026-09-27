@@ -33,7 +33,7 @@ harness it is modeled on (codex, pi, goose, opencode, deepseek-harness, gemini-c
 | Python (uv) | `uv add autoinference` |
 | Node.js (npm) | `npm install autoinference` |
 | Node.js (npx) | `npx autoinference` |
-| Rust (cargo) | `cargo add autoinference` |
+| Rust (cargo) | `cargo install autoinference` |
 | Go | `go get github.com/autoinference/autoinference` |
 
 ## Repo layout

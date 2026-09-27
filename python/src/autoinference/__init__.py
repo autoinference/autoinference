@@ -1,3 +1,13 @@
-"""Placeholder for the autoinference library. Work in progress."""
+"""autoinference — agentic LLM inference optimization.
 
-__version__ = "0.0.2"
+The product is a Rust CLI (`cargo install autoinference`, `npm i -g autoinference`, or a GitHub
+Release binary). This Python package installs the sidecar the CLI drives (knob registry, hardware
+probes, engine adapters) and exposes its version.
+"""
+
+__version__ = "0.0.3"
+
+try:  # the sidecar is the real Python surface
+    from autoinference_sidecar import PROTOCOL_VERSION  # noqa: F401
+except ImportError:  # pragma: no cover
+    PROTOCOL_VERSION = None

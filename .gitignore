@@ -32,3 +32,6 @@ Cargo.lock
 # Helm chart build artifacts (the packaged .tgz + generated index.yaml
 # get published to the autoinference/charts repo, not committed here)
 .helm-dist/
+
+# keep the harness lockfile (binary crate → reproducible builds)
+!harness/Cargo.lock

@@ -3,6 +3,11 @@ name = "autoinference-protocol"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Wire protocol for autoinference: event taxonomy, snapshots, sidecar frames (single source of truth for JSON Schema / TS types)."
+readme = "../../README.md"
+keywords = ["llm", "inference", "vllm", "sglang", "agent"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 serde.workspace = true

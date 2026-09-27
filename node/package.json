@@ -1,30 +1,19 @@
 {
   "name": "autoinference",
-  "version": "0.0.1",
-  "description": "Placeholder for the autoinference library. Work in progress.",
+  "version": "0.0.2",
+  "description": "Agentic CLI for LLM inference optimization on NVIDIA GPUs — engine selection, config tuning, kernel synthesis, validation. npm launcher for the Rust binary.",
+  "bin": { "autoinference": "bin/autoinference.js" },
   "main": "index.js",
   "scripts": {
-    "test": "echo \"No tests yet\" && exit 0"
+    "postinstall": "node scripts/postinstall.js",
+    "test": "node -e \"require('./index.js')\""
   },
-  "keywords": [
-    "autoinference",
-    "inference",
-    "ml",
-    "ai"
-  ],
+  "files": ["index.js", "bin", "scripts", "README.md", "LICENSE"],
+  "engines": { "node": ">=18" },
+  "keywords": ["autoinference", "inference", "llm", "vllm", "sglang", "tensorrt-llm", "gpu", "agent", "cli"],
   "author": "Auto Inference <hello@autoinference.org>",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/autoinference/autoinference.git"
-  },
-  "bugs": {
-    "url": "https://github.com/autoinference/autoinference/issues"
-  },
-  "homepage": "https://github.com/autoinference/autoinference#readme",
-  "files": [
-    "index.js",
-    "README.md",
-    "LICENSE"
-  ]
+  "repository": { "type": "git", "url": "git+https://github.com/autoinference/autoinference.git" },
+  "bugs": { "url": "https://github.com/autoinference/autoinference/issues" },
+  "homepage": "https://autoinference.org"
 }
