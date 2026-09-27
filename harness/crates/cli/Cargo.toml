@@ -14,10 +14,10 @@ name = "autoinference"
 path = "src/main.rs"
 
 [dependencies]
-autoinference-protocol = { path = "../protocol", version = "0.0.3" }
-autoinference-core = { path = "../core", version = "0.0.3" }
-autoinference-agent = { path = "../agent", version = "0.0.3" }
-autoinference-tui = { path = "../tui", version = "0.0.3" }
+autoinference-protocol = { path = "../protocol", version = "0.0.4" }
+autoinference-core = { path = "../core", version = "0.0.4" }
+autoinference-agent = { path = "../agent", version = "0.0.4" }
+autoinference-tui = { path = "../tui", version = "0.0.4" }
 anyhow.workspace = true
 tokio.workspace = true
 clap.workspace = true

@@ -72,6 +72,26 @@ export ANTHROPIC_API_KEY=...
 | `runs list\|show RUN\|pareto RUN` | candidates, results and the pareto front of a tuning run |
 | `schema` | JSON Schema of the event envelope → generate dashboard types from it |
 
+## Load-test tiers (incremental vs robust)
+
+Every trial picks a load generator; all tiers return the same `BenchResult` shape so runs are comparable.
+
+| tier | tool | use it for |
+|---|---|---|
+| `quick` (default) | built-in stdlib generator, streaming TTFT/TPOT | **every commit / every candidate** — seconds |
+| `engine` | `vllm bench serve` / `python -m sglang.bench_serving` | numbers comparable to the engine's own reference benchmarks |
+| `aiperf` | [NVIDIA AIPerf](https://developer.nvidia.com/blog/benchmarking-llm-inference-at-scale-with-aiperf/) (`aiperf profile`) | **robust stress runs, used sparingly** — full percentiles, poisson/gamma arrivals, request-rate shaping, GPU power/utilization telemetry, multi-node |
+
+```bash
+scripts/deploy-check.sh                      # quick tier after each deployment change (exit 2 if the result is noisy)
+STRESS=1 scripts/deploy-check.sh             # AIPerf, 512 poisson-arrival requests
+LOADGEN=engine scripts/deploy-check.sh       # engine-native bench tool
+autoinference trial --engine vllm --loadgen aiperf --workload '{"concurrency":64,"arrival":"poisson","request_rate":40}' …
+```
+
+AIPerf needs `uv tool install aiperf` on the GPU host; when a tier's tool is missing the trial fails with a
+one-line install hint instead of silently downgrading.
+
 ## Design provenance
 
 Every subsystem is modeled on the best-in-class implementation found in a survey of 24 open-source

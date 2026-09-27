@@ -119,3 +119,15 @@ trusts single measurements chases thermal noise forever; a Bayesian loop re-prop
 constantly. Warm-up, repeats, significance and provenance are invariants, so they live in the tool, not
 the prompt. **Modeled on** the Trial design in BLUEPRINT §7; `CandidateSource` is tracked so eval can
 prove LLM value against pure Bayesian search. Mock numbers are labelled `[mock-1]` and never presented as real.
+
+## 16. Load tests are tiered: quick per commit, AIPerf for robust stress
+**Decision.** `WorkloadSpec.loadgen ∈ {quick, engine, aiperf}`. `quick` (built-in streaming generator,
+seconds) runs after every commit / for every candidate; `engine` uses the engine's own bench tool
+(`vllm bench serve`, `sglang.bench_serving`) when numbers must match the engine's reference benchmarks;
+`aiperf` (NVIDIA AIPerf) is the robust tier used sparingly — percentiles, poisson/gamma arrivals,
+request-rate shaping, GPU power/util telemetry. The tier is part of the trial's content hash, so a quick
+and an AIPerf measurement of the same config are distinct ledger rows. A missing tool fails loudly with
+an install hint; there is no silent downgrade. `scripts/deploy-check.sh` encodes the policy
+(`STRESS=1` → AIPerf). **Why.** Per-commit checks must be fast enough to run always; the robust tier
+must be trustworthy enough to gate a deployment. Flags and metric tags were verified against the
+mirrored sources in inference-engine-KB (`repos/aiperf`, `repos/vllm`, `repos/sglang`).

@@ -5,7 +5,7 @@ Release binary). This Python package installs the sidecar the CLI drives (knob r
 probes, engine adapters) and exposes its version.
 """
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 
 try:  # the sidecar is the real Python surface
     from autoinference_sidecar import PROTOCOL_VERSION  # noqa: F401

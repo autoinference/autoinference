@@ -112,6 +112,9 @@ enum Cmd {
         workload: String,
         #[arg(long, default_value_t = 3)]
         repeats: u32,
+        /// Load-generator tier: quick (built-in, seconds) | engine (vllm/sglang bench tool) | aiperf (NVIDIA AIPerf, robust stress)
+        #[arg(long, default_value = "quick")]
+        loadgen: String,
         /// Ledger run id to record under (default: a fresh id).
         #[arg(long)]
         run: Option<String>,
@@ -254,6 +257,7 @@ async fn main() -> Result<()> {
             config,
             workload,
             repeats,
+            loadgen,
             run,
             json,
         } => {
@@ -286,10 +290,15 @@ async fn main() -> Result<()> {
             });
             let tool = autoinference_core::tools::trial::TrialRun;
             use autoinference_core::tools::Tool;
+            let mut workload_v = serde_json::from_str::<serde_json::Value>(&workload)
+                .context("--workload must be JSON")?;
+            if workload_v.get("loadgen").is_none() {
+                workload_v["loadgen"] = serde_json::Value::String(loadgen);
+            }
             let input = serde_json::json!({
                 "engine": engine, "model": model, "sku": sku,
                 "config": serde_json::from_str::<serde_json::Value>(&config).context("--config must be JSON")?,
-                "workload": serde_json::from_str::<serde_json::Value>(&workload).context("--workload must be JSON")?,
+                "workload": workload_v,
                 "repeats": repeats, "source": "seed"
             });
             let out = tool.execute(input, &ctx).await?;

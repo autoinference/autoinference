@@ -20,6 +20,18 @@ pub struct WorkloadSpec {
     pub output_tokens: u32,
     #[serde(default = "d_requests")]
     pub requests: u32,
+    /// quick (built-in, per-commit) | engine (vllm bench serve / sglang.bench_serving) | aiperf (robust stress)
+    #[serde(default = "d_loadgen")]
+    pub loadgen: String,
+    /// aiperf only: constant | poisson | gamma
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arrival: Option<String>,
+    /// aiperf only: requests per second (with poisson/gamma arrival)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_rate: Option<f64>,
+}
+fn d_loadgen() -> String {
+    "quick".into()
 }
 fn d_name() -> String {
     "chat".into()
@@ -45,6 +57,9 @@ impl Default for WorkloadSpec {
             prompt_tokens: 512,
             output_tokens: 128,
             requests: 128,
+            loadgen: "quick".into(),
+            arrival: None,
+            request_rate: None,
         }
     }
 }

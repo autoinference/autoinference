@@ -35,7 +35,10 @@ impl Tool for TrialRun {
             "config":{"type":"object","description":"engine knobs as {flag_name: value}; names from kb_search"},
             "workload":{"type":"object","properties":{
                 "name":{"type":"string"},"concurrency":{"type":"integer"},"prompt_tokens":{"type":"integer"},
-                "output_tokens":{"type":"integer"},"requests":{"type":"integer"}}},
+                "output_tokens":{"type":"integer"},"requests":{"type":"integer"},
+                "loadgen":{"type":"string","enum":["quick","engine","aiperf"],"description":"quick = built-in (default, per-commit checks); engine = the engine's own bench tool; aiperf = NVIDIA AIPerf robust stress tier (percentiles, poisson arrivals, GPU power). Use aiperf sparingly — it is slower."},
+                "arrival":{"type":"string","enum":["constant","poisson","gamma"]},
+                "request_rate":{"type":"number"}}},
             "repeats":{"type":"integer","default":3},
             "timeout_s":{"type":"integer","default":900},
             "source":{"type":"string","enum":["seed","bayes","llm"],"default":"llm"}
@@ -259,7 +262,7 @@ impl Tool for TrialRun {
         );
         Ok(ToolOutput::ok(text).with_data(json!({
             "candidate_id": candidate_id, "bench_result_id": bench_id, "verdict": verdict, "bench": bench,
-            "engine_version": engine_version, "command": resp["command"], "pareto": front, "cached": false
+            "engine_version": engine_version, "command": resp["command"], "loadgen": resp["loadgen"], "pareto": front, "cached": false
         })))
     }
 }

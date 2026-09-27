@@ -1,6 +1,6 @@
 [project]
 name = "autoinference-sidecar"
-version = "0.0.3"
+version = "0.0.4"
 description = "Out-of-process Python sidecar for autoinference: knob-registry queries, hardware probes, engine adapters."
 readme = "README.md"
 requires-python = ">=3.10"
